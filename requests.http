@@ -1,0 +1,118 @@
+### Змінні
+@baseUrl = http://localhost:3000
+
+### 1. Реєстрація користувача з роллю GUEST (базовий клієнт)
+# @name registerGuest
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "email": "guest@example.com",
+  "password": "guestPassword123"
+}
+
+### 2. Реєстрація користувача з роллю ORGANIZER (привілейований організатор)
+# @name registerOrganizer
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "email": "organizer@example.com",
+  "password": "organizerPassword123",
+  "role": "ORGANIZER"
+}
+
+### 3. Логін користувача GUEST (отримання Access Token та HttpOnly Cookie refreshToken)
+# @name loginGuest
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "guest@example.com",
+  "password": "guestPassword123"
+}
+
+### Збереження токена гостя
+@guestToken = {{loginGuest.response.body.accessToken}}
+
+### 4. Отримання профілю поточного користувача GUEST (GET /auth/me)
+GET {{baseUrl}}/auth/me
+Authorization: Bearer {{guestToken}}
+
+### 5. Спроба створення квитка гостем -> HTTP 403 Forbidden (RBAC захист)
+POST {{baseUrl}}/tickets
+Authorization: Bearer {{guestToken}}
+Content-Type: application/json
+
+{
+  "title": "Спроба зламу / заборонений квиток",
+  "price": 500,
+  "venue": "НСК Олімпійський",
+  "sector": 1,
+  "seatNumber": 12
+}
+
+### 6. Публічний перегляд каталогу квитків (без токена, перевірка @Public)
+GET {{baseUrl}}/tickets
+
+### 7. Логін організатора ORGANIZER (отримання Access Token)
+# @name loginOrganizer
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "organizer@example.com",
+  "password": "organizerPassword123"
+}
+
+### Збереження токена організатора
+@organizerToken = {{loginOrganizer.response.body.accessToken}}
+
+### 8. Отримання профілю поточного користувача ORGANIZER (GET /auth/me)
+GET {{baseUrl}}/auth/me
+Authorization: Bearer {{organizerToken}}
+
+### 9. Створення нової події організатором
+# @name createEvent
+POST {{baseUrl}}/tickets/events
+Authorization: Bearer {{organizerToken}}
+Content-Type: application/json
+
+{
+  "title": "Atlas Weekend 2026",
+  "location": "ВДНГ, Київ",
+  "eventDate": "2026-07-15T18:00:00.000Z"
+}
+
+### Збереження ID створеної події
+@eventId = {{createEvent.response.body.id}}
+
+### 10. Успішне створення квитка організатором -> HTTP 201 Created
+# @name createTicket
+POST {{baseUrl}}/tickets
+Authorization: Bearer {{organizerToken}}
+Content-Type: application/json
+
+{
+  "title": "VIP Квиток Atlas Weekend",
+  "price": 2500,
+  "venue": "ВДНГ",
+  "sector": 1,
+  "seatNumber": 10,
+  "eventId": "{{eventId}}"
+}
+
+### Збереження ID створеного квитка
+@ticketId = {{createTicket.response.body.id}}
+
+### 11. Оновлення сесії через Refresh Token (POST /auth/refresh)
+# REST Client автоматично надсилає cookie refreshToken з попереднього логіну
+# @name refreshToken
+POST {{baseUrl}}/auth/refresh
+
+### 12. Вихід із системи (POST /auth/logout)
+POST {{baseUrl}}/auth/logout
+Authorization: Bearer {{organizerToken}}
+
+### 13. Спроба оновлення сесії після виходу -> HTTP 401 Unauthorized
+POST {{baseUrl}}/auth/refresh
